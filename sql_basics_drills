@@ -27,5 +27,5 @@ SELECT
 FROM
 	weather
 WHERE
-	events LIKE 'Rain' AND
+	events = 'Rain' AND
 	zip = 94301;
