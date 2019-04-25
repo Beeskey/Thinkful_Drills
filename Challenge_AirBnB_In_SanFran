@@ -1,8 +1,133 @@
-1. Max listing is $10,000,
+1. What's the most expensive listing? What else can you tell me about the listing?
+
+SELECT * FROM sfo_listings
+ORDER BY price DESC
+LIMIT 1
+
+id: 24650875
+Max listing is $10,000,
 Full House Victorian: 7500 SqFt, 4 Floors, Hot Tub
 Contact: Sarah
 Neighborhood: Western Addition
 Minimum Nights: 2
 Availability: 18/365
-Reviews: 4 since 05/09/2018, all positive. 3 for May 2018, one for August. Prices vary based on time of year, 
-with the winter holidays being the most expensive I could find.
+
+SELECT * FROM sfo_reviews
+WHERE listing_id = 24650875
+
+Reviews: 4 since 05/09/2018, all positive. 3 for May 2018, one for August.
+
+SELECT * FROM sfo_calendar
+WHERE listing_id = 24650875
+
+Calendar: 
+I had to start my analysis here with looking at the "availability" column. I wasn't sure what this meant, so I considered a listing
+with an availability of 356/365 on the sfo_listings schema. I looked at its availability on the sfo_calendar schema:
+
+SELECT * FROM sfo_calendar
+WHERE listing_id=42408
+
+From this, I can see that, starting at row 23 and for the rest of the rows, availability is 't.' While it's a bit more than the 9 days
+that should be unavailable, this answers my question of what the 'availability' column represents - days where the listing is active,
+not rentals (f) vs vacancies (t).
+
+As for our listing, I notice availability around Thanksgiving and Christmas, with two additional periods in September and October - 
+perhaps San Francisco events or other holidays of which I'm unaware. This house is probably just rented out when the owners are out of
+and/or know they can charge a premium for use of their home. They adjust prices according to holidays, with Christmas time having the 
+highest price.
+
+
+2. What neighborhoods seem to be the most popular?
+
+This could require us to factor in many variables/columns. My initial throught is to just count listings per neighborhood:
+SELECT
+	COUNT(*),
+	neighbourhood
+FROM sfo_listings
+GROUP BY neighbourhood
+ORDER BY 1 DESC
+LIMIT 5;
+
+Output:
+"694"	"Mission"
+"506"	"Western Addition"
+"504"	"South of Market"
+"487"	"Downtown/Civic Center"
+"385"	"Castro/Upper Market"
+
+But popularity may have more to do with number of rentals. I also want to try and consider the number of reviews per month, to see
+how they results compare.
+
+SELECT
+	SUM(reviews_per_month),
+	neighbourhood
+FROM sfo_listings
+GROUP BY neighbourhood
+ORDER BY 1 DESC
+LIMIT 5;
+
+Output:
+"1074.3"	"Mission"
+"801.25"	"Outer Sunset"
+"714.64"	"Western Addition"
+"695.38"	"Bernal Heights"
+"662.09"	"Castro/Upper Market"
+
+So, the Mission is certainly the most popular, with Western Addition and Castro/Upper Market also falling in the top 5 of both.
+
+
+3.What time of year is the cheapest time to go to San Francisco? What about the busiest?
+
+SELECT
+	AVG(price::money::numeric::INTEGER),
+	calender_date
+FROM sfo_calendar
+GROUP BY calender_date
+ORDER BY 1;
+
+The results from this are pretty striking! December and January are by far the cheapest, with dates from only those two months
+populating the first 42 rows of the results. The average prices in those rows range from 201.32 to 215.45.
+
+pt. 2: Again, it depends on how we define busiest. If we consider it as a function of how many listings are available, we have:
+
+SELECT
+  COUNT(CASE WHEN available='t' THEN 1 END),
+  calender_date  
+FROM sfo_calendar
+GROUP BY calender_date
+ORDER BY 1 DESC;
+
+This provides the number of available listings per date, but that may not be the best measure of business, because it doesn't
+tell us how many of the listings were actually rented. Results are scattered, primarily in winter with a bit of spread into late fall
+and early spring (Nov. to Mar.).
+Perhaps a better measure would be number of reviews grouped per date. As the reviews come after a stay, these will be a bit off
+but we can take that into account in our analysis.
+
+SELECT
+  COUNT(*),
+  review_date
+FROM sfo_reviews
+GROUP BY review_date
+ORDER BY 1 DESC;
+
+This is where graphing would come in handy. It looks like predominantly the results are summer/warmer weather months - May through
+September appear most often.
+This ranking could be of help:
+
+SELECT
+  COUNT(*) as reviews,
+  EXTRACT (MONTH FROM review_date) as month
+FROM sfo_reviews
+GROUP BY month
+ORDER BY reviews DESC;
+
+Output:
+"reviews" "month"
+"35054"	"8"
+"31631"	"7"
+"27744"	"5"
+"27542"	"6"
+"24397"	"9"
+"23696"	"10"
+
+So there is definitely a trend of summer/ warmer weather AirBnB reviews/visits to San Francisco.
